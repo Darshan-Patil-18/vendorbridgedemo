@@ -46,16 +46,25 @@ function VendorManagement({ user, onLogout }) {
   const fetchVendors = async () => {
     try {
       setLoading(true);
+      console.log('Fetching vendors...');
+      
       const { data, error } = await supabase
         .from('vendors')
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      console.log('Vendors fetched:', data);
+      
+      if (error) {
+        console.error('Supabase error:', error);
+        throw error;
+      }
+      
       setVendors(data || []);
+      console.log('Vendors state updated:', data?.length || 0, 'vendors');
     } catch (error) {
       console.error('Error fetching vendors:', error);
-      alert('Error loading vendors');
+      alert('Error loading vendors: ' + (error.message || 'Unknown error'));
     } finally {
       setLoading(false);
     }
@@ -127,32 +136,49 @@ function VendorManagement({ user, onLogout }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
+    console.log('Submitting vendor:', formData);
+    
     try {
       if (editingVendor) {
         // Update existing vendor
+        console.log('Updating vendor:', editingVendor.id);
+        
         const { error } = await supabase
           .from('vendors')
           .update(formData)
           .eq('id', editingVendor.id);
 
-        if (error) throw error;
+        if (error) {
+          console.error('Update error:', error);
+          throw error;
+        }
 
         await logActivity('Vendor Updated', `Updated vendor: ${formData.name}`);
         alert('Vendor updated successfully!');
       } else {
         // Add new vendor
-        const { error } = await supabase
+        console.log('Adding new vendor');
+        
+        const vendorData = {
+          ...formData,
+          created_by: user.id,
+          rating: 0,
+          total_orders: 0
+        };
+        
+        console.log('Vendor data to insert:', vendorData);
+        
+        const { data: insertedData, error } = await supabase
           .from('vendors')
-          .insert([
-            {
-              ...formData,
-              created_by: user.id,
-              rating: 0,
-              total_orders: 0
-            }
-          ]);
+          .insert([vendorData])
+          .select();
 
-        if (error) throw error;
+        if (error) {
+          console.error('Insert error:', error);
+          throw error;
+        }
+        
+        console.log('Vendor inserted:', insertedData);
 
         await logActivity('Vendor Added', `Added new vendor: ${formData.name}`);
         alert('Vendor added successfully!');
@@ -162,7 +188,7 @@ function VendorManagement({ user, onLogout }) {
       setShowModal(false);
     } catch (error) {
       console.error('Error saving vendor:', error);
-      alert('Error saving vendor');
+      alert('Error saving vendor: ' + (error.message || 'Unknown error. Check console for details.'));
     }
   };
 
