@@ -1,5 +1,6 @@
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
+import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import Dashboard from './pages/Dashboard';
@@ -48,6 +49,7 @@ function App() {
   return (
     <Router>
       <Routes>
+        <Route path="/" element={<Landing />} />
         <Route 
           path="/login" 
           element={!user ? <Login onLogin={handleLogin} /> : <Navigate to="/dashboard" />} 
@@ -92,7 +94,6 @@ function App() {
           path="/reports" 
           element={user ? <Reports user={user} onLogout={handleLogout} /> : <Navigate to="/login" />} 
         />
-        <Route path="/" element={<Navigate to="/login" />} />
       </Routes>
     </Router>
   );
