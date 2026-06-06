@@ -208,200 +208,330 @@ function Reports({ user, onLogout }) {
   const COLORS = ['#2563eb', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
 
   const handleExport = (format) => {
-    if (format === 'csv') {
-      // Export vendor performance data as CSV
-      if (vendorPerformance.length === 0) {
-        alert('No vendor performance data to export');
-        return;
+    try {
+      if (format === 'csv') {
+        // Export vendor performance data as CSV
+        if (vendorPerformance.length === 0) {
+          // If no vendor performance, export all available data
+          const csvData = [];
+          
+          // Add procurement stats
+          csvData.push(['VendorBridge Analytics Report']);
+          csvData.push(['Generated:', new Date().toLocaleString()]);
+          csvData.push(['Period:', dateRange]);
+          csvData.push([]);
+          csvData.push(['Key Metrics']);
+          procurementStats.forEach(stat => {
+            csvData.push([stat.label, stat.value]);
+          });
+          csvData.push([]);
+          
+          // Add monthly spending if available
+          if (monthlySpending.length > 0) {
+            csvData.push(['Monthly Spending']);
+            csvData.push(['Month', 'Spending', 'Orders']);
+            monthlySpending.forEach(month => {
+              csvData.push([month.month, month.spending, month.orders]);
+            });
+            csvData.push([]);
+          }
+          
+          // Add category breakdown if available
+          if (categoryBreakdown.length > 0) {
+            csvData.push(['Category Breakdown']);
+            csvData.push(['Category', 'Value']);
+            categoryBreakdown.forEach(cat => {
+              csvData.push([cat.name, cat.value]);
+            });
+          }
+          
+          // Convert to CSV string
+          const csvContent = csvData.map(row => row.join(',')).join('\n');
+          
+          // Download
+          downloadCSV(csvContent, `vendorbridge_report_${new Date().toISOString().split('T')[0]}.csv`);
+          return;
+        }
+
+        // Export vendor performance table
+        const headers = ['Vendor', 'Total Orders', 'Total Spend', 'Avg Delivery (days)', 'Rating'];
+        const rows = vendorPerformance.map(vendor => [
+          vendor.vendor,
+          vendor.orders,
+          vendor.totalSpend.toFixed(2),
+          vendor.avgDelivery,
+          vendor.rating.toFixed(1)
+        ]);
+
+        const csvContent = [headers, ...rows].map(row => row.join(',')).join('\n');
+        downloadCSV(csvContent, `vendor_performance_${new Date().toISOString().split('T')[0]}.csv`);
+        
+      } else if (format === 'pdf') {
+        // Generate comprehensive PDF report
+        generatePDFReport();
       }
+    } catch (error) {
+      console.error('Export error:', error);
+      alert('Error exporting data. Please try again.');
+    }
+  };
 
-      // Create CSV headers
-      const headers = ['Vendor', 'Total Orders', 'Total Spend', 'Avg Delivery (days)', 'Rating'];
-      
-      // Create CSV rows
-      const rows = vendorPerformance.map(vendor => [
-        vendor.vendor,
-        vendor.orders,
-        vendor.totalSpend.toFixed(2),
-        vendor.avgDelivery,
-        vendor.rating.toFixed(1)
-      ]);
-
-      // Combine headers and rows
-      const csvContent = [
-        headers.join(','),
-        ...rows.map(row => row.join(','))
-      ].join('\n');
-
-      // Create blob and download
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement('a');
+  const downloadCSV = (content, filename) => {
+    const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    if (link.download !== undefined) {
       const url = URL.createObjectURL(blob);
       link.setAttribute('href', url);
-      link.setAttribute('download', `vendor_performance_${new Date().toISOString().split('T')[0]}.csv`);
+      link.setAttribute('download', filename);
       link.style.visibility = 'hidden';
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      
-    } else if (format === 'pdf') {
-      // For PDF export, we'll create a comprehensive report
-      if (vendorPerformance.length === 0 && monthlySpending.length === 0 && categoryBreakdown.length === 0) {
-        alert('No data available to export');
-        return;
-      }
+      URL.revokeObjectURL(url);
+    }
+  };
 
-      // Create a printable report
-      const reportWindow = window.open('', '_blank');
-      reportWindow.document.write(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title>VendorBridge Analytics Report</title>
-          <style>
-            body { 
-              font-family: Arial, sans-serif; 
-              padding: 20px; 
-              color: #000;
-              background: #fff;
-            }
-            h1 { color: #2563eb; border-bottom: 3px solid #2563eb; padding-bottom: 10px; }
-            h2 { color: #334155; margin-top: 30px; }
-            table { 
-              width: 100%; 
-              border-collapse: collapse; 
-              margin: 20px 0; 
-            }
-            th, td { 
-              border: 1px solid #ddd; 
-              padding: 12px; 
-              text-align: left; 
-            }
-            th { 
-              background-color: #2563eb; 
-              color: white; 
-            }
-            tr:nth-child(even) { background-color: #f8fafc; }
-            .stats { 
-              display: grid; 
-              grid-template-columns: repeat(4, 1fr); 
-              gap: 15px; 
-              margin: 20px 0; 
-            }
-            .stat-box { 
-              border: 1px solid #ddd; 
-              padding: 15px; 
-              border-radius: 8px; 
-              background: #f8fafc;
-            }
-            .stat-box h3 { margin: 0; font-size: 14px; color: #64748b; }
-            .stat-box p { margin: 10px 0 0 0; font-size: 24px; font-weight: bold; color: #0f172a; }
-            .footer { 
-              margin-top: 40px; 
-              padding-top: 20px; 
-              border-top: 1px solid #ddd; 
-              text-align: center; 
-              color: #64748b; 
-              font-size: 12px;
-            }
-          </style>
-        </head>
-        <body>
-          <h1>VendorBridge Analytics Report</h1>
-          <p><strong>Generated:</strong> ${new Date().toLocaleString()}</p>
-          <p><strong>Period:</strong> ${dateRange}</p>
+  const generatePDFReport = () => {
+    // Check if there's any data to export
+    const hasData = vendorPerformance.length > 0 || monthlySpending.length > 0 || categoryBreakdown.length > 0;
+    
+    if (!hasData) {
+      alert('No data available to export. Please ensure you have vendors and purchase orders in the system.');
+      return;
+    }
 
-          <h2>Key Metrics</h2>
-          <div class="stats">
-            ${procurementStats.map(stat => `
-              <div class="stat-box">
-                <h3>${stat.label}</h3>
-                <p>${stat.value}</p>
-              </div>
-            `).join('')}
+    // Create HTML for PDF
+    const reportHTML = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>VendorBridge Analytics Report</title>
+        <meta charset="utf-8">
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            padding: 40px; 
+            color: #0f172a;
+            background: #fff;
+            line-height: 1.6;
+          }
+          .header { 
+            border-bottom: 4px solid #2563eb; 
+            padding-bottom: 20px; 
+            margin-bottom: 30px;
+          }
+          h1 { 
+            color: #2563eb; 
+            font-size: 32px;
+            margin-bottom: 10px;
+          }
+          .meta { 
+            color: #64748b; 
+            font-size: 14px;
+          }
+          .meta strong { color: #0f172a; }
+          
+          .stats-grid { 
+            display: grid; 
+            grid-template-columns: repeat(4, 1fr); 
+            gap: 20px; 
+            margin: 30px 0; 
+          }
+          .stat-box { 
+            border: 2px solid #e2e8f0; 
+            padding: 20px; 
+            border-radius: 8px;
+            background: #f8fafc;
+          }
+          .stat-box h3 { 
+            font-size: 12px; 
+            color: #64748b; 
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+          }
+          .stat-box p { 
+            font-size: 28px; 
+            font-weight: bold; 
+            color: #0f172a;
+          }
+          
+          h2 { 
+            color: #1e293b; 
+            font-size: 20px;
+            margin: 40px 0 20px 0;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e2e8f0;
+          }
+          
+          table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            margin: 20px 0;
+            background: white;
+          }
+          th, td { 
+            border: 1px solid #e2e8f0; 
+            padding: 12px 16px; 
+            text-align: left; 
+          }
+          th { 
+            background-color: #2563eb; 
+            color: white; 
+            font-weight: 600;
+            font-size: 14px;
+          }
+          tr:nth-child(even) { 
+            background-color: #f8fafc; 
+          }
+          td { font-size: 14px; }
+          
+          .footer { 
+            margin-top: 60px; 
+            padding-top: 20px; 
+            border-top: 2px solid #e2e8f0; 
+            text-align: center; 
+          }
+          .footer p { 
+            color: #64748b; 
+            font-size: 12px;
+            margin: 5px 0;
+          }
+          .footer .brand {
+            color: #2563eb;
+            font-weight: bold;
+            font-size: 14px;
+          }
+          
+          .empty-section {
+            padding: 20px;
+            text-align: center;
+            color: #94a3b8;
+            background: #f8fafc;
+            border-radius: 8px;
+            margin: 20px 0;
+          }
+          
+          @media print {
+            body { padding: 20px; }
+            .stat-box { break-inside: avoid; }
+            table { break-inside: avoid; }
+            h2 { break-after: avoid; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>📊 VendorBridge Analytics Report</h1>
+          <div class="meta">
+            <p><strong>Generated:</strong> ${new Date().toLocaleString()}</p>
+            <p><strong>Report Period:</strong> ${dateRange}</p>
+            <p><strong>Generated By:</strong> ${user.name} (${user.role})</p>
           </div>
+        </div>
 
-          ${vendorPerformance.length > 0 ? `
-            <h2>Vendor Performance</h2>
-            <table>
-              <thead>
+        <h2>📈 Key Performance Metrics</h2>
+        <div class="stats-grid">
+          ${procurementStats.map(stat => `
+            <div class="stat-box">
+              <h3>${stat.label}</h3>
+              <p>${stat.value}</p>
+            </div>
+          `).join('')}
+        </div>
+
+        ${vendorPerformance.length > 0 ? `
+          <h2>🏆 Vendor Performance Analytics</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Vendor Name</th>
+                <th>Total Orders</th>
+                <th>Total Spend</th>
+                <th>Avg Delivery</th>
+                <th>Rating</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${vendorPerformance.map(vendor => `
                 <tr>
-                  <th>Vendor</th>
-                  <th>Total Orders</th>
-                  <th>Total Spend</th>
-                  <th>Avg Delivery</th>
-                  <th>Rating</th>
+                  <td><strong>${vendor.vendor}</strong></td>
+                  <td>${vendor.orders}</td>
+                  <td>$${vendor.totalSpend.toLocaleString()}</td>
+                  <td>${vendor.avgDelivery} days</td>
+                  <td>⭐ ${vendor.rating.toFixed(1)}</td>
                 </tr>
-              </thead>
-              <tbody>
-                ${vendorPerformance.map(vendor => `
-                  <tr>
-                    <td><strong>${vendor.vendor}</strong></td>
-                    <td>${vendor.orders}</td>
-                    <td>$${vendor.totalSpend.toLocaleString()}</td>
-                    <td>${vendor.avgDelivery} days</td>
-                    <td>⭐ ${vendor.rating.toFixed(1)}</td>
-                  </tr>
-                `).join('')}
-              </tbody>
-            </table>
-          ` : ''}
+              `).join('')}
+            </tbody>
+          </table>
+        ` : '<div class="empty-section">No vendor performance data available</div>'}
 
-          ${monthlySpending.length > 0 ? `
-            <h2>Monthly Spending</h2>
-            <table>
-              <thead>
+        ${monthlySpending.length > 0 ? `
+          <h2>💰 Monthly Procurement Trends</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Month</th>
+                <th>Total Spending</th>
+                <th>Number of Orders</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${monthlySpending.map(month => `
                 <tr>
-                  <th>Month</th>
-                  <th>Spending</th>
-                  <th>Orders</th>
+                  <td><strong>${month.month}</strong></td>
+                  <td>$${month.spending.toLocaleString()}</td>
+                  <td>${month.orders}</td>
                 </tr>
-              </thead>
-              <tbody>
-                ${monthlySpending.map(month => `
-                  <tr>
-                    <td>${month.month}</td>
-                    <td>$${month.spending.toLocaleString()}</td>
-                    <td>${month.orders}</td>
-                  </tr>
-                `).join('')}
-              </tbody>
-            </table>
-          ` : ''}
+              `).join('')}
+            </tbody>
+          </table>
+        ` : '<div class="empty-section">No monthly spending data available</div>'}
 
-          ${categoryBreakdown.length > 0 ? `
-            <h2>Category Breakdown</h2>
-            <table>
-              <thead>
+        ${categoryBreakdown.length > 0 ? `
+          <h2>📦 Category Distribution</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Category</th>
+                <th>Spending Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${categoryBreakdown.map(cat => `
                 <tr>
-                  <th>Category</th>
-                  <th>Spending</th>
+                  <td><strong>${cat.name}</strong></td>
+                  <td>$${cat.value.toLocaleString()}</td>
                 </tr>
-              </thead>
-              <tbody>
-                ${categoryBreakdown.map(cat => `
-                  <tr>
-                    <td>${cat.name}</td>
-                    <td>$${cat.value.toLocaleString()}</td>
-                  </tr>
-                `).join('')}
-              </tbody>
-            </table>
-          ` : ''}
+              `).join('')}
+            </tbody>
+          </table>
+        ` : '<div class="empty-section">No category breakdown available</div>'}
 
-          <div class="footer">
-            <p>VendorBridge - Procurement Management System</p>
-            <p>This report is confidential and intended for internal use only</p>
-          </div>
-        </body>
-        </html>
-      `);
-      reportWindow.document.close();
+        <div class="footer">
+          <p class="brand">VendorBridge</p>
+          <p>Procurement Management System</p>
+          <p style="margin-top: 10px;">This report is confidential and intended for internal use only.</p>
+          <p>© ${new Date().getFullYear()} VendorBridge. All rights reserved.</p>
+        </div>
+      </body>
+      </html>
+    `;
+
+    // Open in new window and trigger print
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(reportHTML);
+      printWindow.document.close();
+      printWindow.focus();
       
-      // Trigger print dialog
+      // Wait for content to load, then print
       setTimeout(() => {
-        reportWindow.print();
-      }, 250);
+        printWindow.print();
+      }, 500);
+    } else {
+      alert('Please allow pop-ups to generate the PDF report.');
     }
   };
 
